@@ -38,24 +38,33 @@ typedef struct my_heap_t {
 //
 // Static variables (DO NOT ADD ANOTHER STATIC VARIABLES!)
 //
-my_heap_t bin[4]; // i * 1000 <= size && size < (i + 1) * 1000
+my_heap_t bin[7]; // <= 16,64,128,256,1024,2048,4096
 my_heap_t dummy;
 //
 // Helper functions (feel free to add/remove/edit!)
 //
 
-void my_remove_from_free_list(my_metadata_t *metadata, my_metadata_t *prev, size_t bin_size) {
+int bin_index_check(size) {
+  int bin_array[7] = {16,64,128,256,1024,2048,4096};
+  for(int i=0;i<7;i++){
+    if(size <= bin_array[i]){
+      return i;
+    }
+  }
+  return -1;
+}
+
+void my_remove_from_free_list(my_metadata_t *metadata, my_metadata_t *prev, size_t bin_index) {
   if (prev) {
     prev->next = metadata->next;
   } else {
-    bin[bin_size].free_head = metadata->next;
+    bin[bin_index].free_head = metadata->next;
   }
   metadata->next = NULL;
 }
 
-
-void marge_free_list(my_metadata_t *metadata, size_t bin_size) {
-  my_metadata_t *left_metadata = bin[bin_size].free_head;
+void merge_free_list(my_metadata_t *metadata, size_t bin_index) {
+  my_metadata_t *left_metadata = bin[bin_index].free_head;
   while (left_metadata) {
     // ... | metadata    | free slot | metadata | free slot | ...
     //     ^                         ^
@@ -67,21 +76,21 @@ void marge_free_list(my_metadata_t *metadata, size_t bin_size) {
     //     metadata
     //                    <---------------------------------->
     //                                 left_size   
-    if ((my_metadata_t *)((char *)left_metadata + (left_metadata->size) + 1) == metadata) {
-      //printf("left");
-      left_metadata->size += metadata->size + 1;
-      my_remove_from_free_list(metadata, left_metadata, bin_size);
+    if ((my_metadata_t *)((char *)(left_metadata) + (left_metadata->size) + sizeof(metadata)) == metadata) {
+      printf("left");
+      left_metadata->size += metadata->size + sizeof(metadata);
+      my_remove_from_free_list(metadata, left_metadata, bin_index);
       metadata = left_metadata;
       break;
     }
     left_metadata = left_metadata->next;
   }
-  my_metadata_t *right_metadata = bin[bin_size].free_head;
+  my_metadata_t *right_metadata = bin[bin_index].free_head;
   while (right_metadata) {
-    if (right_metadata == (my_metadata_t *)((char *)metadata + (metadata->size) + 1)) {
-      //printf("right");
-      metadata->size += right_metadata->size;
-      my_remove_from_free_list(right_metadata, metadata, bin_size);
+    if (right_metadata == (my_metadata_t *)((char *)(metadata) + metadata->size + sizeof(right_metadata))) {
+      printf("right");
+      metadata->size += right_metadata->size + sizeof(right_metadata);
+      my_remove_from_free_list(right_metadata, metadata, bin_index);
       break;
     }
     right_metadata = right_metadata->next;
@@ -89,11 +98,11 @@ void marge_free_list(my_metadata_t *metadata, size_t bin_size) {
 }
 
 
-void my_add_to_free_list(my_metadata_t *metadata, size_t bin_size) {
+void my_add_to_free_list(my_metadata_t *metadata, size_t bin_index) {
   assert(!(metadata->next));
-  metadata->next = bin[bin_size].free_head;
-  bin[bin_size].free_head = metadata;
-  marge_free_list(metadata, bin_size); //changing here makes error
+  metadata->next = bin[bin_index].free_head;
+  bin[bin_index].free_head = metadata;
+  //merge_free_list(metadata, bin_index);
 }
 
 //
@@ -114,8 +123,8 @@ void my_initialize() {
 // 4000. You are not allowed to use any library functions other than
 // mmap_from_system() / munmap_to_system().
 void *my_malloc(size_t size) {
-  size_t bin_size = size/1000;
-  my_metadata_t *metadata = bin[bin_size].free_head;
+  size_t bin_index = bin_index_check(size);
+  my_metadata_t *metadata = bin[bin_index].free_head;
   my_metadata_t *prev = NULL;
   // First-fit: Find the first free slot the object fits.
   // Updated this logic to Best-fit!
@@ -152,7 +161,7 @@ void *my_malloc(size_t size) {
     metadata->size = buffer_size - sizeof(my_metadata_t);
     metadata->next = NULL;
     // Add the memory region to the free list.
-    my_add_to_free_list(metadata, bin_size);
+    my_add_to_free_list(metadata, bin_index);
     // Now, try my_malloc() again. This should succeed.
     return my_malloc(size);
   }
@@ -165,7 +174,7 @@ void *my_malloc(size_t size) {
   void *ptr = metadata + 1;
   size_t remaining_size = metadata->size - size;
   // Remove the free slot from the free list.
-  my_remove_from_free_list(metadata, prev, bin_size);
+  my_remove_from_free_list(metadata, prev, bin_index);
 
   if (remaining_size > sizeof(my_metadata_t)) {
     // Shrink the metadata for the allocated object
@@ -185,7 +194,7 @@ void *my_malloc(size_t size) {
     new_metadata->size = remaining_size - sizeof(my_metadata_t);
     new_metadata->next = NULL;
     // Add the remaining free slot to the free list.
-    my_add_to_free_list(new_metadata, bin_size);
+    my_add_to_free_list(new_metadata, bin_index);
   }
   return ptr;
 }
@@ -199,9 +208,9 @@ void my_free(void *ptr) {
   //     ^          ^
   //     metadata   ptr
   my_metadata_t *metadata = (my_metadata_t *)ptr - 1;
-  size_t bin_size = (metadata->size) / 1000;
+  size_t bin_index = bin_index_check(metadata->size);
   // Add the free slot to the free list.
-  my_add_to_free_list(metadata, bin_size);
+  my_add_to_free_list(metadata, bin_index);
 }
 
 // This is called at the end of each challenge.

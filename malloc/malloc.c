@@ -38,7 +38,7 @@ typedef struct my_heap_t {
 //
 // Static variables (DO NOT ADD ANOTHER STATIC VARIABLES!)
 //
-my_heap_t bin[7]; // <= 16,64,128,256,1024,2048,4096
+my_heap_t bin[7];
 my_heap_t dummy;
 //
 // Helper functions (feel free to add/remove/edit!)
@@ -51,7 +51,7 @@ int bin_index_check(size) {
       return i;
     }
   }
-  return -1;
+  return -1; //error
 }
 
 void my_remove_from_free_list(my_metadata_t *metadata, my_metadata_t *prev, size_t bin_index) {
@@ -77,7 +77,6 @@ void merge_free_list(my_metadata_t *metadata, size_t bin_index) {
     //                    <---------------------------------->
     //                                 left_size   
     if ((my_metadata_t *)((char *)(left_metadata) + (left_metadata->size) + sizeof(metadata)) == metadata) {
-      printf("left");
       left_metadata->size += metadata->size + sizeof(metadata);
       my_remove_from_free_list(metadata, left_metadata, bin_index);
       metadata = left_metadata;
@@ -88,7 +87,6 @@ void merge_free_list(my_metadata_t *metadata, size_t bin_index) {
   my_metadata_t *right_metadata = bin[bin_index].free_head;
   while (right_metadata) {
     if (right_metadata == (my_metadata_t *)((char *)(metadata) + metadata->size + sizeof(right_metadata))) {
-      printf("right");
       metadata->size += right_metadata->size + sizeof(right_metadata);
       my_remove_from_free_list(right_metadata, metadata, bin_index);
       break;
@@ -102,7 +100,7 @@ void my_add_to_free_list(my_metadata_t *metadata, size_t bin_index) {
   assert(!(metadata->next));
   metadata->next = bin[bin_index].free_head;
   bin[bin_index].free_head = metadata;
-  //merge_free_list(metadata, bin_index);
+  //merge_free_list(metadata, bin_index); //merging time is too long & no merged
 }
 
 //
